@@ -1,0 +1,93 @@
+#To practice data manipulation in R we are going to download and load the free spreadsheet on Individual Income Tax Statistics - 2015 ZIP Code Data
+#This is available to download from the IRS website: https://www.irs.gov/statistics/soi-tax-stats-individual-income-tax-statistics-2015-zip-code-data-soi
+
+#Load necessary packages
+library(dplyr)
+library(ggplot2)
+
+
+#Load CSV from web
+zip.data = read.csv("https://www.irs.gov/pub/irs-soi/15zpallagi.csv")
+
+#It takes a while to open this file because it is around 169Mb in size. 
+#This dataset consists of 166'698 rows and 131 columns.
+#More info about which variables are included are available here: https://www.irs.gov/pub/irs-soi/15zpdoc.doc
+
+
+#Average by state
+AdjGrossIncome = zip.data %>%
+  group_by(STATE) %>%
+  summarize(AdjGrossIncome = mean(A00100))
+
+#This functions runs is milliseconds and basically does two things. First it extracts values by state, for example all rows pertaining to the state of AK.
+#Then it averages values in the column A00100, which consists of data about the Adjust gross income.
+
+#The output is a tibble, not a data.frame. However, it can be used similarly to a data.frame with many functions.
+#For example, if we need to plot our results we can simply use ggplot2:
+
+ggplot(AdjGrossIncome, aes(x=reorder(STATE,AdjGrossIncome), y=AdjGrossIncome)) +
+  geom_bar(stat="identity") +
+  xlab("States") + 
+  ylab("Adjusted Gross Income") +
+  theme_minimal()+
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
+
+#Export results
+write.csv(AdjGrossIncome, "J:/Data Manipulation in R/AdjGrossIncome.csv", row.names=F)
+
+
+
+#Adding additional columns is just a matter of including additional option within summarize
+TaxIncome = zip.data %>%
+  group_by(STATE) %>%
+  summarize(AdjGrossIncome = mean(A00100), 
+            "Total income amount" = sum(A02650),
+            "Taxable pensions and annuities amount" = median(A01700))
+
+#As you can see we can use numerous functions to summarize our data, not just mean.
+
+
+#The function group_by allows us to include multiple arguments.
+#Let's say for example that we want to group data by state and by the Size of adjusted gross income (column agi_stub)
+
+TaxIncome = zip.data %>%
+  group_by(STATE, agi_stub) %>%
+  summarize(Exemptions = sum(N2))
+
+#This allows the creation of a barchart on the number of exeptions by state but split into the 6 categories of gross income:
+ggplot(TaxIncome, aes(x=reorder(STATE,Exemptions), y=Exemptions)) +
+  geom_bar(stat="identity") +
+  facet_wrap(~agi_stub) +
+  xlab("States") + 
+  ylab("Number of exemptions") +
+  theme_minimal()+
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
+
+
+
+#Other operations can be performed with the usual apply set of functions.
+#For example, let's say that we want to create a column where the numerical values of agi_stub are tranformed into their respective textual threshold.
+#We can do this by creasting a simple function with a series of if statements. We can use the table available in the word document with the description of the dataset:
+
+AGIText = apply(zip.data, 1, function(x){
+  if(x[4]==1){
+    "$1 under $25,000"
+  } else if(x[4]==2){
+    "$25,000 under $50,000"
+  } else if(x[4]==3){
+    "$50,000 under $75,000"
+  } else if(x[4]==4){
+    "$75,000 under $100,000"
+  } else if(x[4]==5){
+    "$100,000 under $200,000"
+  } else {
+    "$200,000 or more"
+  }
+  })
+
+#Despite being vectorized, the function apply takes a bit more time to perform the operation.
+#The output is a vector, which can be added to the data.frame by simply doing:
+
+zip.data$AGIText = AGIText
